@@ -4,20 +4,17 @@ import (
 	"context"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/liyue201/etn/server/config"
+	"github.com/liyue201/etn/server/models"
 	"github.com/liyue201/go-logger"
 	"net/http"
-	"strconv"
-	"wallet-scan/btc-node-service/btc"
-	"wallet-scan/btc-node-service/logic"
 )
 
 type RestSever struct {
 	httpServer *http.Server
-	txmgr      *logic.TxMgr
-	btcCli     *btc.Client
 }
 
-func NewHttpServer(port int, txmgr *logic.TxMgr, btcClient *btc.Client) *RestSever {
+func NewHttpServer(port int) *RestSever {
 	gin.SetMode(gin.ReleaseMode)
 	engin := gin.Default()
 
@@ -25,9 +22,10 @@ func NewHttpServer(port int, txmgr *logic.TxMgr, btcClient *btc.Client) *RestSev
 	httpServer := &http.Server{Addr: addr, Handler: engin}
 	server := &RestSever{
 		httpServer: httpServer,
-		txmgr:      txmgr,
-		btcCli:     btcClient,
 	}
+
+	engin.Static("/static", config.Cfg.Static)
+
 	server.initRoute(engin)
 
 	return server
@@ -45,75 +43,15 @@ func (s *RestSever) Stop() {
 }
 
 func (s *RestSever) initRoute(r gin.IRouter) {
-	r.GET("/api/v1/txs", s.GetAddressTransations)
-	r.GET("/api/v1/addr/:addr/utxo", s.GetAddressUtxo)
-	r.POST("/api/v1/tx/send", s.SendTx)
+	r.GET("/api/v1/version", s.GetVersion)
+	r.GET("/api/v1/files", s.GetFiles)
 }
 
-func (s *RestSever) GetAddressTransations(c *gin.Context) {
-	addr := c.Query("address")
-
-	strLimit := c.Query("limit")
-	if strLimit == "" {
-		strLimit = "100"
-	}
-	limit, _ := strconv.Atoi(strLimit)
-	strOffsert := c.Query("offset")
-	if strOffsert == "" {
-		strOffsert = "0"
-	}
-	offset, _ := strconv.Atoi(strOffsert)
-	nextNodeId := c.Query("next_node_id")
-
-	logger.Debugf("addr:%s, limit:%d, offset:%d", addr, limit, offset)
-
-	if addr == "" {
-		RespJson(c, BadRequest, nil)
-		return
-	}
-
-	txs, nextNodeId, _ := s.txmgr.GetAddressTxs(addr, uint(offset), uint(limit), -1, nextNodeId)
-
-	ret := struct {
-		Txs        interface{} `json:"txs"`
-		NextNodeId string      `json:"nextNodeId"`
-	}{
-		Txs:        txs,
-		NextNodeId: nextNodeId,
-	}
-
-	RespJson(c, OK, ret)
+func (s *RestSever) GetVersion(c *gin.Context) {
+	RespJson(c, OK, config.Cfg.Version)
 }
 
-func (s *RestSever) GetAddressUtxo(c *gin.Context) {
-	addr := c.Param("addr")
-
-	logger.Debugf("addr:%s", addr)
-
-	utxos, _ := s.txmgr.GetAddressUtxos(addr)
-
-	RespJson(c, OK, utxos)
-}
-
-func (s *RestSever) SendTx(c *gin.Context) {
-	req := struct {
-		Rawtx string `json:"rawtx" binding:"required"`
-	}{}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		logger.Errorf("SendTx %s", err)
-		RespJson(c, BadRequest, nil)
-		return
-	}
-
-	txid, err := s.btcCli.SendTx(req.Rawtx)
-	if err != nil {
-		RespJson(c, SendTxFail, nil)
-		return
-	}
-	ret := struct {
-		Txid string `json:"txid"`
-	}{
-		Txid: txid,
-	}
-	RespJson(c, OK, ret)
+func (s *RestSever) GetFiles(c *gin.Context) {
+	files := models.GetFiles()
+	RespJson(c, OK, files)
 }

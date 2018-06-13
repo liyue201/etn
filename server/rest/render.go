@@ -18,12 +18,3 @@ func RespJson(c *gin.Context, code int, data interface{}) {
 	}
 	c.JSON(OK, result)
 }
-
-func RespJsonWithAbord(c *gin.Context, code int, data interface{}) {
-	result := &RespJsonObj{
-		Code: code,
-		Msg:  StatusText(code),
-		Data: data,
-	}
-	c.AbortWithStatusJSON(OK, result)
-}

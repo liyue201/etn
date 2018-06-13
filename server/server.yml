@@ -1,0 +1,10 @@
+
+version: 1
+port: 7883
+static: ./static
+db:
+    host: 127.0.0.1
+    port: 3352
+    user: test
+    password: test123
+    dbname: test
